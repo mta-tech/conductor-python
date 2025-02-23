@@ -6,15 +6,12 @@ from conductor.client.configuration.settings.authentication_settings import Auth
 
 
 class Configuration:
-    AUTH_TOKEN = None
-
     def __init__(
             self,
             base_url: str = None,
             debug: bool = False,
             authentication_settings: AuthenticationSettings = None,
-            server_api_url: str = None,
-            auth_token_ttl_min: int = 45
+            server_api_url: str = None
     ):
         if server_api_url is not None:
             self.host = server_api_url
@@ -34,13 +31,16 @@ class Configuration:
         if authentication_settings is not None:
             self.authentication_settings = authentication_settings
         else:
-            key = os.getenv('CONDUCTOR_AUTH_KEY')
-            secret = os.getenv('CONDUCTOR_AUTH_SECRET')
-            if key is not None and secret is not None:
-                self.authentication_settings = AuthenticationSettings(key_id=key, key_secret=secret)
+            token = os.getenv('CONDUCTOR_BEARER_TOKEN')
+            if token is not None:
+                self.authentication_settings = AuthenticationSettings(bearer_token=token)
             else:
-                self.authentication_settings = None
-
+                key = os.getenv('CONDUCTOR_AUTH_KEY')
+                secret = os.getenv('CONDUCTOR_AUTH_SECRET')
+                if key is not None and secret is not None:
+                    self.authentication_settings = AuthenticationSettings(key_id=key, key_secret=secret)
+                else:
+                    self.authentication_settings = None
 
         # Debug switch
         self.debug = debug
@@ -67,10 +67,6 @@ class Configuration:
 
         # Provide an alterative to requests.Session() for HTTP connection.
         self.http_connection = None
-
-        # not updated yet
-        self.token_update_time = 0
-        self.auth_token_ttl_msec = auth_token_ttl_min * 60 * 1000
 
     @property
     def debug(self):
@@ -151,7 +147,3 @@ class Configuration:
     @staticmethod
     def get_logging_formatted_name(name):
         return f'[{os.getpid()}] {name}'
-
-    def update_token(self, token: str) -> None:
-        self.AUTH_TOKEN = token
-        self.token_update_time = round(time.time() * 1000)

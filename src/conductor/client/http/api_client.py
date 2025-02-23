@@ -56,7 +56,6 @@ class ApiClient(object):
         )
 
         self.cookie = cookie
-        self.__refresh_auth_token()
 
     def __call_api(
             self, resource_path, method, path_params=None,
@@ -563,9 +562,6 @@ class ApiClient(object):
         except TypeError:
             return data
 
-    def __deserialize_bytes_to_str(self, data):
-        return data.decode('utf-8')
-
     def __deserialize_object(self, value):
         """Return a original value.
 
@@ -649,63 +645,18 @@ class ApiClient(object):
         return instance
 
     def __get_authentication_headers(self):
-        if self.configuration.AUTH_TOKEN is None:
+        if self.configuration.authentication_settings is None:
             return None
 
-        now = round(time.time() * 1000)
-        time_since_last_update = now - self.configuration.token_update_time
-
-        if time_since_last_update > self.configuration.auth_token_ttl_msec:
-            # time to refresh the token
-            logger.debug(f'refreshing authentication token')
-            token = self.__get_new_token()
-            self.configuration.update_token(token)
+        if self.configuration.authentication_settings.bearer_token is None:
+            logger.error('Bearer token is not set')
+            return None
 
         return {
             'header': {
-                'X-Authorization': self.configuration.AUTH_TOKEN
+                'Authorization': f'Bearer {self.configuration.authentication_settings.bearer_token}'
             }
         }
-
-    def __refresh_auth_token(self) -> None:
-        if self.configuration.AUTH_TOKEN is not None:
-            return
-        if self.configuration.authentication_settings is None:
-            return
-        token = self.__get_new_token()
-        self.configuration.update_token(token)
-
-    def __force_refresh_auth_token(self) -> None:
-        """
-        Forces the token refresh.  Unlike the __refresh_auth_token method above
-        """
-        if self.configuration.authentication_settings is None:
-            return
-        token = self.__get_new_token()
-        self.configuration.update_token(token)
-
-    def __get_new_token(self) -> str:
-        try:
-            if self.configuration.authentication_settings.key_id is None or self.configuration.authentication_settings.key_secret is None:
-                logger.error('Authentication Key or Secret is set.  Failed to get the auth token')
-                return None
-
-            response = self.call_api(
-                '/token', 'POST',
-                header_params={
-                    'Content-Type': self.select_header_content_type(['*/*'])
-                },
-                body={
-                    'keyId': self.configuration.authentication_settings.key_id,
-                    'keySecret': self.configuration.authentication_settings.key_secret
-                },
-                _return_http_data_only=True,
-                response_type='Token'
-            )
-            return response.token
-        except Exception as e:
-            logger.error(f'Failed to get new token, reason: {e.args}')
-            return None
 
     def __get_default_headers(self, header_name: str, header_value: object) -> Dict[str, object]:
         headers = {
